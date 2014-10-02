@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+
+    <style>
+
+    #graph, #info {
+        width: 50%;
+        float: left;
+    }
+        
+    .node {
+      cursor: pointer;
+    }
+
+    .node:hover {
+      stroke: #000;
+      stroke-width: 1.5px;
+    }
+
+    .node--leaf {
+      fill: white;
+    }
+
+    .label {
+      font: 11px "Helvetica Neue", Helvetica, Arial, sans-serif;
+      text-anchor: middle;
+      text-shadow: 0 1px 0 #fff, 1px 0 0 #fff, -1px 0 0 #fff, 0 -1px 0 #fff;
+    }
+
+    .label,
+    .node--root,
+    .node--leaf {
+      /*pointer-events: none;*/
+    }
+
+        
+    div.tooltip {   
+		position: absolute;
+        left:200px;
+		text-align: left;           
+		width: 400px;               
+		height: 45px;              
+		padding: 6px 8px;             
+		font: 18px sans-serif;
+		background: #fff;   
+		border: 0px;     
+		border-radius: 8px;           
+		pointer-events: none;
+		-webkit-box-shadow: 3px 3px 6px #000;
+		-moz-box-shadow: 3px 3px 6px #000;
+		-o-box-shadow: 3px 3px 6px #000;
+		-ms-box-shadow: 3px 3px 6px #000;
+		box-shadow: 3px 3px 6px #000;
+		filter: alpha(opacity=60);
+		opacity: 0.6;
+	}
+
+    </style>
+</head>
+
+<body>
+    <div id="header" style="font:32px sans-serif;margin:16px 0;width:800px;text-align:center">Obesity in the UK by Sex from <a href="http://data.gov.uk/dataset/statistics_on_obesity_physical_activity_and_diet_england/resource/fadc49ed-7973-4d28-b6eb-e2ab36bd75da">data.gov.uk</a> <br />
+        by pixelpusher from <a href="http://bl.ocks.org/mbostock/7607535">d3 examples</a></div>
+    <div id="graph"></div>
+    <div id="info"></div>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script>
+
+var margin = 20,
+    diameter = 800;
+
+var color = d3.scale.linear()
+    .domain([-1, 5])
+    .range(["hsl(152,80%,80%)", "hsl(228,30%,40%)"])
+    .interpolate(d3.interpolateHcl);
+
+var pack = d3.layout.pack()
+    .padding(2)
+    .size([diameter - margin, diameter - margin])
+    .value(function(d) { return d.size; })
+
+var svg = d3.select("body").append("svg")
+    .attr("width", diameter)
+    .attr("height", diameter)
+  .append("g")
+    .attr("transform", "translate(" + diameter / 2 + "," + diameter / 2 + ")");
+
+var div =  d3.select("#graph").append("div")   
+    .attr("class", "tooltip")               
+    .style("opacity", 0);
+    
+var filename = "obesity";
+
+    
+/*
+ * Load the data from the file
+ */
+    
+d3.csv("data/" + filename + ".csv", function(rows) 
+{ 
+    var data = { name: 'obesity', children: [] };
+    rows.forEach(function( row )
+    {
+        //console.log('men:'+parseInt(row['men'],10));
+        //console.log('women:'+parseInt(row['women'],10));
+        
+        
+        var yearData = { name: row['year'], children: [] };
+        yearData.children.push( { name: 'men', size: parseInt(row['men'],10) } );
+        yearData.children.push( { name: 'women', size: parseInt(row['women'],10) } );
+        
+        //console.log(yearData);
+        
+        data.children.push( yearData );
+    });
+    
+    //now build a graph!
+    buildGraph(data);
+});
+    
+    
+/*
+ * Build the D3 graph
+ */
+    
+function buildGraph(root) 
+{
+    console.log('building graph');
+    console.log(root);
+    
+  var focus = root,
+      nodes = pack.nodes(root),
+      view;
+
+  
+    
+  var circle = svg.selectAll("circle")
+      .data(nodes)
+    .enter().append("circle")
+      .attr("class", function(d) { return d.parent ? d.children ? "node" : "node node--leaf" : "node node--root"; })
+      .style("fill", function(d) { return d.children ? color(d.depth) : null; })
+      .on("click", function(d) { 
+          if (focus !== d && d.children) //check if there are children
+          {
+              zoom(d);
+              d3.event.stopPropagation();
+          }
+        div.transition()
+           .duration(200)      
+           .style("opacity", 0);
+        
+      })
+      .on("mouseover", function(d) {
+            //console.log(d['name']);
+          if (!d.children)
+          {
+            div.transition()
+					.duration(200)      
+					.style("opacity", .9);      
+				div.html( d['name'] + ': ' + parseInt(d.value,10));
+					//.style("left", (d3.event.pageX) + "px")
+					//.style("top", (d3.event.pageY) + "px"); 
+                    //d3.event.stopPropagation(); 
+              d3.event.stopPropagation();
+          }
+      })
+      .on("mouseout", function(d) { 
+            div.transition()
+					.duration(200)      
+					.style("opacity", 0);
+           d3.event.stopPropagation();
+      });
+    
+
+  var text = svg.selectAll("text")
+      .data(nodes)
+    .enter().append("text")
+      .attr("class", "label")
+      .style("fill-opacity", function(d) { return d.parent === root ? 1 : 0; })
+      .style("display", function(d) { return d.parent === root ? null : "none"; })
+      .text(function(d) { return d.name; });
+
+  var node = svg.selectAll("circle,text");
+
+  d3.select("body")
+      .style("background", color(-1))
+      .on("click", function() { zoom(root); });
+
+  zoomTo([root.x, root.y, root.r * 2 + margin]);
+
+  function zoom(d) {
+    var focus0 = focus; focus = d;
+      
+    var transition = d3.transition()
+        .duration(d3.event.altKey ? 7500 : 750)
+        .tween("zoom", function(d) {
+          var i = d3.interpolateZoom(view, [focus.x, focus.y, focus.r * 2 + margin]);
+          return function(t) { zoomTo(i(t)); };
+        });
+
+    transition.selectAll("text")
+      .filter(function(d) { return d.parent === focus || this.style.display === "inline"; })
+        .style("fill-opacity", function(d) { return d.parent === focus ? 1 : 0; })
+        .each("start", function(d) { if (d.parent === focus) this.style.display = "inline"; })
+        .each("end", function(d) { if (d.parent !== focus) this.style.display = "none"; });
+  }
+
+  function zoomTo(v) {
+    var k = diameter / v[2]; view = v;
+    node.attr("transform", function(d) { return "translate(" + (d.x - v[0]) * k + "," + (d.y - v[1]) * k + ")"; });
+    circle.attr("r", function(d) { return d.r * k; });
+  }
+}
+
+
+d3.select(self.frameElement).style("height", diameter + "px");
+
+</script>
+</body>
+</html>
