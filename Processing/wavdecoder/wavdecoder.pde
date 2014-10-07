@@ -7,22 +7,23 @@
 import java.io.*;
 
 boolean fileChosen = false;
-PrintWriter output;
+PrintWriter output, outputRMS;
 String outFileName = "sound.csv";
+String RMSoutFileName = "sound_rms.csv";
 
 
 void setup()
 {
-  size(400,300);
+  size(400, 300);
   background(0);
   fill(200);
-  text("hit space", 10,20);
+  text("hit space", 10, 20);
   output = createWriter(outFileName);
+  outputRMS = createWriter(RMSoutFileName);
 }
 
 void draw()
 {
-
 }
 
 void keyReleased()
@@ -31,7 +32,7 @@ void keyReleased()
     if (!fileChosen) 
     {
       fileChosen = true;
-      background(0,200,0);
+      background(0, 200, 0);
       selectInput("Select a file to process:", "fileSelected");
     }
 }
@@ -59,43 +60,43 @@ void fileSelected(File selection)
 
       // Create a buffer of 100 frames
       //double[] buffer = new double[100 * numChannels];
-      
+
       println("found " + wavFile.getNumFrames() + " frames to read over " + numChannels + " channels");
-      
-      int passSize = 1000;
+
+      int passSize = 100;
       long passes = ceil(wavFile.getNumFrames() / float(passSize));  // read 100 frames at a time
       long completePasses = 0; // just for checking...
 
       println("--doing " + passes + " passes of " + passSize);
-      
+
       // only read first channel, in chunks
       double[] buffer = new double[passSize];
+      double[] RMSbuffer = new double[passSize];
 
       long framesRead = 0, totalFramesRead = 0;
       int framesLeft = 0;
+
       double min = Double.MAX_VALUE;
       double max = Double.MIN_VALUE;
-
-
+   
       do
       {
         // how many frames are left? (max of passSize)
-        
+
         long frameDiff = (wavFile.getNumFrames() - totalFramesRead);
         if (frameDiff > passSize) 
         {
           framesLeft = passSize;
-        }
-        else
+        } else
         {
-          framesLeft = int(frameDiff); 
+          framesLeft = int(frameDiff);
         }
-        
+
         println("frames left " + framesLeft);
-        
+
         // Read frames into buffer
         framesRead = wavFile.readFrames(buffer, framesLeft);
-        
+
         totalFramesRead += framesRead; 
 
         // Loop through frames and look for minimum and maximum value
@@ -103,17 +104,32 @@ void fileSelected(File selection)
         {
 
           // write to CSV - could be large!
-          
+
           // this prints them into a single row
           //output.print(buffer[s]+",");
-          
+
           // this prints into a single column
           output.println(buffer[s]);
+
+          RMSbuffer[s] = Math.pow(buffer[s], 2d);
 
           if (buffer[s] > max) max = buffer[s];
           if (buffer[s] < min) min = buffer[s];
         }
-        if (framesRead > 0) completePasses++;
+        if (framesRead > 0) 
+        {
+          completePasses++;
+          double RMSPow = 0;
+          int i=0;
+          while (i < RMSbuffer.length)
+          {
+            RMSPow += RMSbuffer[i++];
+          }
+          RMSPow /= RMSbuffer.length;
+          outputRMS.println(RMSPow);
+
+          println("RMS power of segment: " + RMSPow);
+        }
       }
       while (framesRead != 0);
 
@@ -123,6 +139,9 @@ void fileSelected(File selection)
       wavFile.close();
       output.flush(); // Writes the remaining data to the file
       output.close(); // Finishes the file
+
+        outputRMS.flush(); // Writes the remaining data to the file
+      outputRMS.close(); // Finishes the file
 
         // Output the minimum and maximum value to the file
       println("Min:" + min + " Max:" + max);
