@@ -1,15 +1,19 @@
 /// Hooking up a DS1307 (5V) or DS1340Z (3V) real time clock via I2C.
-// 2009-09-17 <jc@wippler.nl> http://opensource.org/licenses/mit-license.php
+// Reading back data written (using the datalogger_writer sketch) to the built-in EEPROM on the ATMEL chip
+//
+// 2014 Nov 19 by Evan Raskob <e.raskob@rave.ac.uk> http://opensource.org/licenses/mit-license.php
 
 // the real-time clock is connected to port 1 in I2C mode (AIO = SCK, dIO = SDA)
+// See JeeLib for info on Ports : http://jeelabs.org/2011/11/10/pins-damned-pins-and-jeenodes/#comments 
+// EEPROMex library from http://thijs.elenbaas.net/2012/07/extended-eeprom-library-for-arduino
+//
 
-// todo: hit a button (to reset the time) 
 
 #include <JeeLib.h>
 #include <EEPROMex.h>
 #include <EEPROMVar.h>
 
-#define _EEPROMEX_DEBUG //comment out for production code...
+//#define _EEPROMEX_DEBUG //comment out for production code...
 
 
 PortI2C myport (1 /*, PortI2C::KHZ400 */);
@@ -118,7 +122,7 @@ static void getDate (byte* buf) {
 }
 
 
-void printDate(byte *d, byte length)
+void printDate(byte *d, byte length=6)
 {
   for (byte i = 0; i < length; i++) {
     Serial.print((int) d[i]);
@@ -149,7 +153,7 @@ void setup() {
   byte date[3];  
   byte data;
   
-  while(addr > 0 && addr <= (nextAddr-4)) // before we hit the top address...
+  while(addr > 0 && addr < nextAddr) // before we hit the top address...
   {
     while(!EEPROM.isReady());
     data = EEPROM.read(addr);

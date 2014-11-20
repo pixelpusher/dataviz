@@ -1,5 +1,13 @@
-// the real-time clock is connected to port 1 in I2C mode (AIO = SCK, dIO = SDA)
+/// Hooking up a DS1307 (5V) or DS1340Z (3V) real time clock via I2C.
+// Reading sensor data (from Analog1) and writing to the built-in EEPROM on the ATMEL chip
+// with a timestamp (h,m,s) for each data byte.  To be read back using the "datalogger_reader" sketch.
+//
+// 2014 Nov 19 by Evan Raskob <e.raskob@rave.ac.uk> http://opensource.org/licenses/mit-license.php
 
+// the real-time clock is connected to port 1 in I2C mode (AIO = SCK, dIO = SDA)
+// See JeeLib for info on Ports : http://jeelabs.org/2011/11/10/pins-damned-pins-and-jeenodes/#comments 
+// EEPROMex library from http://thijs.elenbaas.net/2012/07/extended-eeprom-library-for-arduino
+//
 // todo: hit a button (to reset the time) 
 
 #include <JeeLib.h>
@@ -115,16 +123,14 @@ static void getDate (byte* buf) {
 }
 
 
-void printDate(byte *d)
+void printDate(byte *d, byte length=6)
 {
-  Serial.print("rtc date:");
-  for (byte i = 0; i < 6; ++i) {
-    Serial.print(' ');
+  for (byte i = 0; i < length; i++) {
     Serial.print((int) d[i]);
+    Serial.print('.');
   }
   Serial.println();
 }
-
 
 int nextAddr;
 
