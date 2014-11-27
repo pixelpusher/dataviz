@@ -36,7 +36,7 @@ void loop() {
   maxData = max(maxData, data);
 
 
-  int val = map(data, minData, maxData, 0, 255);
+  int val = map(data, minData, maxData, 0, 120);
   /*
   Serial.print("min:");
   Serial.print(minData);

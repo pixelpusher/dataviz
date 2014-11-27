@@ -1,6 +1,18 @@
+//#include <JeeLib.h>
+#include <Ports.h>
+
+//#include <RF12.h>
+//#include <RF12sio.h>
+//#include <RF69.h>
+//#include <RF69_avr.h>
+//#include <RF69_compat.h>
+#include <JeeLib.h>
+#include <PortsLCD.h>
+
 /// Hooking up a DS1307 (5V) or DS1340Z (3V) real time clock via I2C.
 // Reading sensor data (from Analog1) and writing to the built-in EEPROM on the ATMEL chip
 // with a timestamp (h,m,s) for each data byte.  To be read back using the "datalogger_reader" sketch.
+// Using an LCD for display. http://oomlout.com/parts/LCDD-01-guide.pdf
 //
 // 2014 Nov 19 by Evan Raskob <e.raskob@rave.ac.uk> http://opensource.org/licenses/mit-license.php
 
@@ -10,23 +22,40 @@
 //
 // todo: hit a button (to reset the time) 
 
-#include <JeeLib.h>
+
 #include <EEPROMex.h>
 #include <EEPROMVar.h>
+//#include <LiquidCrystal.h>
+
 
 //#define _EEPROMEX_DEBUG //comment out for production code...
 
 
-PortI2C myport (1 /*, PortI2C::KHZ400 */);
-DeviceI2C rtc (myport, 0x68);
+PortI2C myport (1 /*, PortI2C::KHZ400 */);  // RTC port - see http://jeelabs.org/2009/09/16/jeenode-pinout/
+DeviceI2C rtc (myport, 0x68);  // RTC device driver
 
+// initialize the library with the numbers of the interface pins
+LiquidCrystal lcd(12, 11, 5, 6, 7, 8);
 
+/*
+ The circuit:
+ * LCD RS pin to digital pin 12
+ * LCD Enable pin to digital pin 11
+ * LCD D4 pin to digital pin 5
+ * LCD D5 pin to digital pin 6
+ * LCD D6 pin to digital pin 7
+ * LCD D7 pin to digital pin 8
+ * LCD R/W pin to ground
+ * 10K resistor:
+ * ends to +5V and ground
+ * wiper to LCD VO pin (pin 3 on the LCD)
+ */
 
 //
 // time variables
 //
-byte now[6];
-byte before[6];
+byte now[6]; // current time
+byte before[6]; // time we started logging data
 
 const byte hourIndex = 3; // index in date array of hour byte
 const byte minIndex = 4;  // etc
@@ -37,8 +66,6 @@ const int SECS_PER_MIN = 60;
 
 
 int nextAddr; // next address to write data to
-
-const unsigned int MS_BETWEEN_READINGS = 2000;
 
 
 // functions - defined at end of file /////////////////////////
@@ -65,11 +92,16 @@ byte getSensorData()
 }
 
 
-
-
 void setup() {
   Serial.begin(57600);
   Serial.println("\n[data_writer]");
+
+  // set up the LCD's number of columns and rows: 
+  lcd.begin(16, 2);
+  // Print a message to the LCD.
+  lcd.print("hello, world!");
+
+
 
   // Set maximum allowed writes to maxAllowedWrites. 
   // More writes will only give errors when _EEPROMEX_DEBUG is set
@@ -77,11 +109,11 @@ void setup() {
 
   //lastWrittenAddr = EEPROM.getAddress(sizeof(int));
 
-  // comment this line out to NOT clear the memory every time it restarts
-  //#define _CLEAR_ADDR_
+  #define _CLEAR_ADDR_
 
   #ifdef _CLEAR_ADDR_
-    clearMemory();
+    EEPROM.updateInt(0,0);
+    nextAddr = 2;
   #else
     // read last address... this one should always be empty as it gets written AFTER the data is written
     nextAddr = EEPROM.readInt(0);
@@ -97,18 +129,6 @@ void setup() {
   getDate(before);
   delay(200);  
 }
-
-
-//////////////////
-// TODO!
-//
-// 1. push a button to reset
-// 2. push a button to stop/start
-// 3. visual feedback when:
-//  a. storing data
-//  b. data is full
-//  c. resetting
-// 4. clean up code
 
 
 void loop() 
@@ -127,18 +147,18 @@ void loop()
   Serial.println(timeDiffSecs);
 
 
-  // save it
   //saveSensorData(data);
 
 
-  delay(MS_BETWEEN_READINGS);
+  delay(2000);
 }
 
 
 
 void saveSensorData(byte data)
 {
-     Serial.print("writing to addr: " );
+    // save it
+  Serial.print("writing to addr: " );
   Serial.println(nextAddr);
   
   while(!EEPROM.isReady());
@@ -146,19 +166,17 @@ void saveSensorData(byte data)
   
   // write time
   nextAddr = EEPROM.getAddress(sizeof(byte)*3);
- 
-  Serial.print("writing to addr: " );
-  Serial.println(nextAddr);
-  
+  while(!EEPROM.isReady());
   EEPROM.updateBlock<byte>(nextAddr, &now[3], 3); // only write last 3 bytes (h m s)
   while(!EEPROM.isReady());
 
+  Serial.print("writing to addr: " );
+  Serial.println(nextAddr);
 
   // next address...
   nextAddr = EEPROM.getAddress(sizeof(data));
   EEPROM.updateInt(0,nextAddr); // write next open address
   while(!EEPROM.isReady());
-  
   /*
   if (!result) 
   {
@@ -166,6 +184,8 @@ void saveSensorData(byte data)
   }
   */
 }
+
+
 
 
 void resetBaseAddress()
@@ -273,6 +293,4 @@ void printDate(byte *d, byte length)
   }
   Serial.println();
 }
-
-
 

@@ -1,5 +1,6 @@
-/// Hooking up a DS1307 (5V) or DS1340Z (3V) real time clock via I2C.
+//
 // Reading back data written (using the datalogger_writer sketch) to the built-in EEPROM on the ATMEL chip
+// dumps it to the serial console so you can copy and save as a CSV.
 //
 // 2014 Nov 19 by Evan Raskob <e.raskob@rave.ac.uk> http://opensource.org/licenses/mit-license.php
 
@@ -20,7 +21,6 @@ PortI2C myport (1 /*, PortI2C::KHZ400 */);
 DeviceI2C rtc (myport, 0x68);
 
 
-
 //
 // time variables
 //
@@ -31,14 +31,80 @@ const byte hourIndex = 3; // index in date array of hour byte
 const byte minIndex = 4;  // etc
 const byte secIndex = 5;  // etc
 
+const int MINS_PER_HOUR = 60;
+const int SECS_PER_MIN = 60;
 
-static byte bin2bcd (byte val) {
-  return val + 6 * (val / 10);
+// functions - defined at end of file /////////////////////////
+static byte bin2bcd (byte val);
+static byte bcd2bin (byte val);
+boolean gtDate( byte* dl, byte* dr );
+void printDate(byte *d, byte length=6);
+static void getDate (byte* buf);
+static void setDate (byte yy, byte mm, byte dd, byte h, byte m, byte s);
+int diffSecs( byte* dl, byte* dr );
+///////////////////////////////////////////////////////////////
+
+
+int nextAddr; // next address to read data from
+
+
+void setup() 
+{
+  Serial.begin(57600);
+  delay(100);
+  Serial.println("\n[data_reader]");
+
+    // read last address... this one should always be empty as it gets written AFTER the data is written
+    nextAddr = EEPROM.readInt(0);
+
+  Serial.print("last memory address: ");
+  Serial.println(nextAddr);
+
+  EEPROM.setMemPool(2,nextAddr); // top 2 bytes (an int) are for the nextAddr
+  
+  int addr = EEPROM.getAddress(sizeof(byte));
+  
+  byte date[3];  
+  byte data;
+  
+  while(addr > 0 && addr < nextAddr) // before we hit the top address...
+  {
+    while(!EEPROM.isReady());
+    data = EEPROM.read(addr);
+    Serial.print(addr);
+    Serial.print(",");
+    Serial.print(data);
+    Serial.print(",");
+    addr = EEPROM.getAddress(sizeof(byte)*3); 
+    
+    while(!EEPROM.isReady());
+    EEPROM.readBlock<byte>(addr, date, 3);
+    printDate(date,3);
+/*
+    Serial.print("-");
+    Serial.print(date[0]);
+    Serial.print(",");
+    Serial.print(date[1]);
+    Serial.print(",");
+    Serial.println(date[2]);
+  */  
+    // get next address...
+    addr = EEPROM.getAddress(sizeof(byte)); 
+    delay(100);
+    
+  }
+  delay(200);
 }
 
-static byte bcd2bin (byte val) {
-  return val - 6 * (val >> 4);
+
+
+void loop() 
+{
+ // nothing to do...
 }
+
+
+
 
 
 //
@@ -64,8 +130,7 @@ boolean gtDate( byte* dl, byte* dr )
   return false;
 }
 
-const int MINS_PER_HOUR = 60;
-const int SECS_PER_MIN = 60;
+
 
 
 int diffHours( byte* dl, byte* dr )
@@ -122,7 +187,7 @@ static void getDate (byte* buf) {
 }
 
 
-void printDate(byte *d, byte length=6)
+void printDate(byte *d, byte length)
 {
   for (byte i = 0; i < length; i++) {
     Serial.print((int) d[i]);
@@ -130,64 +195,5 @@ void printDate(byte *d, byte length=6)
   }
   Serial.println();
 }
-
-
-int nextAddr;
-
-
-void setup() {
-  Serial.begin(57600);
-  delay(100);
-  Serial.println("\n[data_reader]");
-
-    // read last address... this one should always be empty as it gets written AFTER the data is written
-    nextAddr = EEPROM.readInt(0);
-
-  Serial.print("last memory address: ");
-  Serial.println(nextAddr);
-
-  EEPROM.setMemPool(2,nextAddr); // top 2 bytes (an int) are for the nextAddr
-  
-  int addr = EEPROM.getAddress(sizeof(byte));
-  
-  byte date[3];  
-  byte data;
-  
-  while(addr > 0 && addr < nextAddr) // before we hit the top address...
-  {
-    while(!EEPROM.isReady());
-    data = EEPROM.read(addr);
-    Serial.print(addr);
-    Serial.print(",");
-    Serial.print(data);
-    Serial.print(",");
-    addr = EEPROM.getAddress(sizeof(byte)*3); 
-    
-    while(!EEPROM.isReady());
-    EEPROM.readBlock<byte>(addr, date, 3);
-    printDate(date,3);
-/*
-    Serial.print("-");
-    Serial.print(date[0]);
-    Serial.print(",");
-    Serial.print(date[1]);
-    Serial.print(",");
-    Serial.println(date[2]);
-  */  
-    // get next address...
-    addr = EEPROM.getAddress(sizeof(byte)); 
-    delay(100);
-    
-  }
-  delay(200);    
-}
-
-
-
-void loop() 
-{
- 
-}
-
 
 
